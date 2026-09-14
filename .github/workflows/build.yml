@@ -360,7 +360,7 @@ jobs:
 
           VERSION="$CURL_VERSION"
 
-          BIN="$RELEASE_DIR/curl-macos-x86_64"
+          BIN="$RELEASE_DIR/bin/curl-macos-x86_64"
           DEV="$RELEASE_DIR/curl-macos-x86_64-dev-${VERSION}.tar.xz"
           CA="$RELEASE_DIR/cacert.pem"
           INFO="$RELEASE_DIR/build-info.txt"
