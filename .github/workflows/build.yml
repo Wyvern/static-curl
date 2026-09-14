@@ -9,6 +9,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  SCCACHE_GHA_ENABLED: "on"
 
 jobs:
   macOS:
@@ -32,6 +33,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@main
+
       - name: Show build environment
         run: |
           set -euxo pipefail
@@ -54,6 +58,22 @@ jobs:
           make --version
           cmake --version
           xcode-select -p
+
+          mkdir -p "sccache-bin"
+
+          cat > "sccache-bin/clang" <<'EOF'
+          #!/bin/bash
+          exec sccache /usr/bin/clang "$@"
+          EOF
+
+          cat > "sccache-bin/clang++" <<'EOF'
+          #!/bin/bash
+          exec sccache /usr/bin/clang++ "$@"
+          EOF
+
+          chmod +x "sccache-bin/clang" "sccache-bin/clang++"
+
+          echo "$PWD/sccache-bin" >> "$GITHUB_PATH"
 
       - name: Detect latest curl release
         id: curl
