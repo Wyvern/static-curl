@@ -333,6 +333,9 @@ jobs:
       - name: Build static curl
         working-directory: static-curl
         env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
           ARCHES: x86_64
           TLS_LIB: openssl
           CURL_VERSION: ${{ steps.curl.outputs.version }}
