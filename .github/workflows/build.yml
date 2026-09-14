@@ -59,19 +59,19 @@ jobs:
           cmake --version
           xcode-select -p
 
+      - name: C/C++ sccache wrappers
+        run: |
+          set -euo pipefail
+
           mkdir -p "sccache-bin"
 
-          cat > "sccache-bin/clang" <<'EOF'
-          #!/bin/bash
-          exec sccache /usr/bin/clang "$@"
-          EOF
-
-          cat > "sccache-bin/clang++" <<'EOF'
-          #!/bin/bash
-          exec sccache /usr/bin/clang++ "$@"
-          EOF
-
-          chmod +x "sccache-bin/clang" "sccache-bin/clang++"
+          for compiler in clang clang++ gcc g++; do
+            cat > "sccache-bin/$compiler" <<'EOF'
+            #!/bin/bash
+            exec sccache /usr/bin/$compiler "$@"
+            EOF
+            chmod +x "sccache-bin/$compiler"
+          done
 
           echo "$PWD/sccache-bin" >> "$GITHUB_PATH"
 
