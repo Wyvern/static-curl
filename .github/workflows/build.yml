@@ -62,15 +62,6 @@ jobs:
         run: |
           set -euxo pipefail
 
-          # GitHub's latest-release API returns a tag such as:
-          #
-          #   curl-8_22_0
-          #
-          # Convert that to:
-          #
-          #   8.22.0
-          #
-
           tag="$(
             /usr/bin/curl \
               --fail \
@@ -81,16 +72,18 @@ jobs:
               --retry-delay 2 \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H "X-GitHub-Api-Version: 2026-03-10" \
               -H "User-Agent: ${GITHUB_REPOSITORY}" \
-              https://api.github.com/repos/curl/curl/releases/latest |
+              "https://api.github.com/repos/curl/curl/releases/latest" |
               jq -r '.tag_name'
-          )
+          )"
 
           if [[ -z "$tag" || "$tag" == "null" ]]; then
             echo "Failed to determine latest curl release"
             exit 1
           fi
+
+          echo "Latest curl release: ${tag}"
 
           case "$tag" in
             curl-[0-9]*)
