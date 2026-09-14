@@ -363,22 +363,18 @@ jobs:
           BIN="$RELEASE_DIR/bin/curl-macos-x86_64"
           DEV="$RELEASE_DIR/curl-macos-x86_64-dev-${VERSION}.tar.xz"
           CA="$RELEASE_DIR/cacert.pem"
-          INFO="$RELEASE_DIR/build-info.txt"
 
           FINAL_BIN="$RELEASE_DIR/curl-${VERSION}-macos-x86_64-broadwell"
           FINAL_DEV="$RELEASE_DIR/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
           FINAL_CA="$RELEASE_DIR/curl-${VERSION}-cacert.pem"
-          FINAL_INFO="$RELEASE_DIR/curl-${VERSION}-macos-x86_64-broadwell-build-info.txt"
 
           mv "$BIN" "$FINAL_BIN"
           mv "$DEV" "$FINAL_DEV"
           mv "$CA" "$FINAL_CA"
-          mv "$INFO" "$FINAL_INFO"
 
           echo "binary=$FINAL_BIN" >> "$GITHUB_OUTPUT"
           echo "dev=$FINAL_DEV" >> "$GITHUB_OUTPUT"
           echo "cacert=$FINAL_CA" >> "$GITHUB_OUTPUT"
-          echo "info=$FINAL_INFO" >> "$GITHUB_OUTPUT"
 
           echo
           echo "===== Final assets ====="
@@ -386,8 +382,7 @@ jobs:
           ls -lh \
             "$FINAL_BIN" \
             "$FINAL_DEV" \
-            "$FINAL_CA" \
-            "$FINAL_INFO"
+            "$FINAL_CA"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -397,7 +392,6 @@ jobs:
             static-curl/../release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell
             static-curl/../release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-dev.tar.xz
             static-curl/../release/curl-${{ steps.curl.outputs.version }}-cacert.pem
-            static-curl/../release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-build-info.txt
           if-no-files-found: error
 
       - name: Upload to GitHub Release
@@ -414,7 +408,6 @@ jobs:
           BIN="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell"
           DEV="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
           CA="$HOME/release/curl-${VERSION}-cacert.pem"
-          INFO="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell-build-info.txt"
 
           echo
           echo "===== GitHub Release ====="
@@ -435,7 +428,6 @@ jobs:
               "$BIN" \
               "$DEV" \
               "$CA" \
-              "$INFO" \
               --repo "$REPOSITORY" \
               --clobber
           else
@@ -446,7 +438,6 @@ jobs:
               "$BIN" \
               "$DEV" \
               "$CA" \
-              "$INFO" \
               --repo "$REPOSITORY" \
               --title "curl ${VERSION} — macOS x86_64 Broadwell" \
               --generate-notes
