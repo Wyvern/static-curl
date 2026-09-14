@@ -139,177 +139,138 @@ jobs:
 
           def replace(old, new, description):
               global text
-
               if old not in text:
                   raise SystemExit(
                       f"ERROR: {description} not found; "
                       "curl-static-mac.sh may have changed upstream"
                   )
-
               text = text.replace(old, new, 1)
               print(f"patched: {description}")
 
-          ###########################################################################
+          #####################################################################
           # Apple Fast UDP
-          ###########################################################################
+          #
+          # Match only the option line, not indentation.
+          #####################################################################
 
           replace(
-              """    --with-nghttp2 --with-nghttp3 --with-ngtcp2 \\
-              --with-libidn2 --with-libssh2 \\
-          """,
-              """    --with-nghttp2 --with-nghttp3 --with-ngtcp2 \\
-              --enable-apple-fast-udp \\
-              --with-libidn2 --with-libssh2 \\
-          """,
+              "        --with-nghttp2 --with-nghttp3 --with-ngtcp2 \\\n",
+              "        --with-nghttp2 --with-nghttp3 --with-ngtcp2 \\\n"
+              "        --enable-apple-fast-udp \\\n",
               "Apple Fast UDP",
           )
 
-          ###########################################################################
-          # curl_config():
-          # Preserve the global optimization flags instead of replacing CFLAGS.
-          ###########################################################################
+          #####################################################################
+          # Preserve global CFLAGS/CXXFLAGS/CPPFLAGS in curl_config().
+          #####################################################################
 
           replace(
-              """    CFLAGS="-I${PREFIX}/include" \\
-          CPPFLAGS="-I${PREFIX}/include";
-          """,
-              """    CFLAGS="${CFLAGS} -I${PREFIX}/include" \\
-          CXXFLAGS="${CXXFLAGS}" \\
-          CPPFLAGS="${CPPFLAGS} -I${PREFIX}/include";
-          """,
+              '        CFLAGS="-I${PREFIX}/include" \\\n'
+              '        CPPFLAGS="-I${PREFIX}/include";',
+              '        CFLAGS="${CFLAGS} -I${PREFIX}/include" \\\n'
+              '        CXXFLAGS="${CXXFLAGS}" \\\n'
+              '        CPPFLAGS="${CPPFLAGS} -I${PREFIX}/include";',
               "curl configure compiler flags",
           )
 
-          ###########################################################################
-          # compile_curl():
-          # Preserve optimization flags during the actual curl build.
-          ###########################################################################
+          #####################################################################
+          # Preserve optimization flags during curl compilation.
+          #####################################################################
 
           replace(
-              """    LDFLAGS="-L${PREFIX}/lib -static -all-static -Wl,-s ${LDFLAGS}" \\
-              CFLAGS="-I${PREFIX}/include -I${PREFIX}/include/brotli" \\
-              CPPFLAGS="-I${PREFIX}/include -I${PREFIX}/include/brotli" \\
-              make -j "${CPU_CORES}";
-          """,
-              """    LDFLAGS="-L${PREFIX}/lib -static -all-static -Wl,-s ${LDFLAGS}" \\
-              CFLAGS="${CFLAGS} -I${PREFIX}/include -I${PREFIX}/include/brotli" \\
-              CXXFLAGS="${CXXFLAGS}" \\
-              CPPFLAGS="${CPPFLAGS} -I${PREFIX}/include -I${PREFIX}/include/brotli" \\
-              make -j "${CPU_CORES}";
-          """,
+              '        CFLAGS="-I${PREFIX}/include -I${PREFIX}/include/brotli" \\\n'
+              '        CPPFLAGS="-I${PREFIX}/include -I${PREFIX}/include/brotli" \\\n',
+              '        CFLAGS="${CFLAGS} -I${PREFIX}/include -I${PREFIX}/include/brotli" \\\n'
+              '        CXXFLAGS="${CXXFLAGS}" \\\n'
+              '        CPPFLAGS="${CPPFLAGS} -I${PREFIX}/include -I${PREFIX}/include/brotli" \\\n',
               "curl compilation compiler flags",
           )
 
-          ###########################################################################
-          # libssh2:
-          # The upstream script currently replaces our CFLAGS with -O3.
-          ###########################################################################
+          #####################################################################
+          # libssh2 currently hard-codes CFLAGS=-O3.
+          #####################################################################
 
           replace(
-              """    LDFLAGS="-L${PREFIX}/lib ${LDFLAGS}" CFLAGS="-O3" \\
-              ./configure --host="${TARGET}" --prefix="${PREFIX}" --enable-static --enable-shared=no \\
-          """,
-              """    LDFLAGS="-L${PREFIX}/lib ${LDFLAGS}" \\
-          CFLAGS="${CFLAGS}" \\
-          CXXFLAGS="${CXXFLAGS}" \\
-              ./configure --host="${TARGET}" --prefix="${PREFIX}" --enable-static --enable-shared=no \\
-          """,
+              '    LDFLAGS="-L${PREFIX}/lib ${LDFLAGS}" CFLAGS="-O3" \\\n',
+              '    LDFLAGS="-L${PREFIX}/lib ${LDFLAGS}" \\\n'
+              '        CFLAGS="${CFLAGS}" \\\n'
+              '        CXXFLAGS="${CXXFLAGS}" \\\n',
               "libssh2 compiler flags",
           )
 
-          ###########################################################################
-          # arch_variants():
-          # Preserve our linker optimization flags when adding Apple frameworks.
-          ###########################################################################
+          #####################################################################
+          # Preserve global LDFLAGS when adding Apple frameworks.
+          #####################################################################
 
           replace(
-              """    export LDFLAGS="-framework CoreFoundation -framework SystemConfiguration"
-          """,
-              """    export LDFLAGS="-framework CoreFoundation -framework SystemConfiguration ${LDFLAGS:-}"
-          """,
+              '    export LDFLAGS="-framework CoreFoundation -framework SystemConfiguration"\n',
+              '    export LDFLAGS="-framework CoreFoundation -framework SystemConfiguration ${LDFLAGS:-}"\n',
               "Apple framework linker flags",
           )
 
-          ###########################################################################
-          # Remove curl's test suite from the extracted source tree.
-          ###########################################################################
+          #####################################################################
+          # Remove curl's test suite.
+          #####################################################################
 
           replace(
-              """    else
-              url_from_github curl/curl "${CURL_VERSION}";
-              url="${URL}";
-              download_and_extract "${url}";
-              [ -z "${CURL_VERSION}" ] && CURL_VERSION=$(echo "${SOURCE_DIR}" | cut -d'-' -f 2);
-          fi
-
-          if [ ! -f src/.checksrc ]; then echo "enable STDERR" > src/.checksrc; fi
-          curl_config;
-          """,
-              """    else
-              url_from_github curl/curl "${CURL_VERSION}";
-              url="${URL}";
-              download_and_extract "${url}";
-              [ -z "${CURL_VERSION}" ] && CURL_VERSION=$(echo "${SOURCE_DIR}" | cut -d'-' -f 2);
-          fi
-
-          rm -rf tests
-
-          if [ ! -f src/.checksrc ]; then echo "enable STDERR" > src/.checksrc; fi
-          curl_config;
-          """,
+              '        [ -z "${CURL_VERSION}" ] && CURL_VERSION=$(echo "${SOURCE_DIR}" | cut -d\'-\' -f 2);\n'
+              '    fi\n'
+              '    if [ ! -f src/.checksrc ]; then echo "enable STDERR" > src/.checksrc; fi\n',
+              '        [ -z "${CURL_VERSION}" ] && CURL_VERSION=$(echo "${SOURCE_DIR}" | cut -d\'-\' -f 2);\n'
+              '    fi\n'
+              '    rm -rf tests\n'
+              '    if [ ! -f src/.checksrc ]; then echo "enable STDERR" > src/.checksrc; fi\n',
               "curl test suite removal",
           )
 
-          ###########################################################################
-          # OpenSSL:
-          # Disable OpenSSL tests/fuzz targets.
-          ###########################################################################
+          #####################################################################
+          # OpenSSL: disable tests/fuzz targets.
+          #####################################################################
 
           replace(
-              """        threads no-shared \\
-              enable-ktls \\
-          """,
-              """        threads no-shared \\
-              no-tests \\
-              enable-ktls \\
-          """,
+              "        threads no-shared \\\n"
+              "        enable-ktls \\\n",
+              "        threads no-shared \\\n"
+              "        no-tests \\\n"
+              "        enable-ktls \\\n",
               "OpenSSL no-tests",
           )
 
-          ###########################################################################
+          #####################################################################
           # GitHub API authentication.
           #
-          # The upstream code later does:
+          # The upstream script already does:
           #
-          #   curl ... -H "Authorization: ${auth_header}"
+          #   -H "Authorization: ${auth_header}"
           #
-          # Therefore auth_header must contain ONLY:
+          # Therefore auth_header must be:
           #
           #   Bearer <token>
           #
-          # or:
+          # NOT:
           #
-          #   token <token>
-          ###########################################################################
+          #   Authorization: Bearer <token>
+          #####################################################################
 
           replace(
-              """    auth_header=""
-          """,
-              """    auth_header=""
-          set +o xtrace
-          if [ -n "${GH_TOKEN:-}" ]; then
-              auth_header="Bearer ${GH_TOKEN}"
-          elif [ -n "${TOKEN_READ:-}" ]; then
-              auth_header="token ${TOKEN_READ}"
-          fi
-          set -o xtrace
-          """,
+              '    auth_header=""\n'
+              '    set +o xtrace\n'
+              '    if [ -n "${TOKEN_READ:-}" ]; then\n'
+              '        auth_header="token ${TOKEN_READ}"\n'
+              '    fi\n',
+              '    auth_header=""\n'
+              '    set +o xtrace\n'
+              '    if [ -n "${GH_TOKEN:-}" ]; then\n'
+              '        auth_header="Bearer ${GH_TOKEN}"\n'
+              '    elif [ -n "${TOKEN_READ:-}" ]; then\n'
+              '        auth_header="token ${TOKEN_READ}"\n'
+              '    fi\n',
               "GitHub API authentication",
           )
 
-          ###########################################################################
-          # Write once, after every replacement has succeeded.
-          ###########################################################################
+          #####################################################################
+          # Write only once after all patches succeed.
+          #####################################################################
 
           path.write_text(text)
           PY
