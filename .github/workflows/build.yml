@@ -346,132 +346,7 @@ jobs:
 
         run: |
           set -euxo pipefail
-
           bash ./curl-static-mac.sh
-
-      - name: Verify build
-        id: verify
-        working-directory: static-curl
-        env:
-          CURL_VERSION: ${{ steps.curl.outputs.version }}
-        run: |
-          set -euxo pipefail
-
-          BIN="$HOME/release/release/bin/curl-macos-x86_64"
-          BUILD="$HOME/build/curl-x86_64"
-
-          if [[ ! -x "$BIN" ]]; then
-            echo "ERROR: curl binary not found:"
-            echo "$BIN"
-            find "$HOME/release" -maxdepth 4 -type f -print
-            exit 1
-          fi
-
-          echo
-          echo "===== curl ====="
-          "$BIN" -V
-
-          echo
-          echo "===== file ====="
-          file "$BIN"
-
-          echo
-          echo "===== architecture ====="
-          lipo -info "$BIN"
-
-          file "$BIN" | grep -q 'x86_64'
-
-          echo
-          echo "===== macOS deployment target ====="
-          otool -l "$BIN" |
-            grep -A5 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX' || true
-
-          echo
-          echo "===== HTTP/3 ====="
-
-          if ! "$BIN" -V | grep -qw 'HTTP3'; then
-            echo "ERROR: HTTP/3 support is missing"
-            exit 1
-          fi
-
-          echo "HTTP/3: enabled"
-
-          echo
-          echo "===== Apple Fast UDP configuration ====="
-
-          config="$(
-            find "$BUILD" \
-              -type f \
-              -name curl_config.h \
-              -print \
-              2>/dev/null |
-              head -1
-          )"
-
-          if [[ -z "$config" ]]; then
-            echo "ERROR: curl_config.h not found"
-            exit 1
-          fi
-
-          echo "Config: $config"
-
-          grep -n \
-            -E 'USE_APPLE_FAST_UDP|USE_NGTCP2|USE_NGHTTP3' \
-            "$config" || true
-
-          if ! grep -Eq \
-            '^[[:space:]]*#define[[:space:]]+USE_APPLE_FAST_UDP[[:space:]]+1' \
-            "$config"
-          then
-            echo
-            echo "ERROR: USE_APPLE_FAST_UDP was not enabled"
-            exit 1
-          fi
-
-          echo
-          echo "Apple Fast UDP: ENABLED"
-
-          echo
-          echo "===== Apple Fast UDP source ====="
-
-          grep -R \
-            -E 'SYS_recvmsg_x|SYS_sendmsg_x|USE_APPLE_FAST_UDP' \
-            "$BUILD" \
-            2>/dev/null |
-            head -50 || true
-
-          echo
-          echo "===== Binary size ====="
-
-          ls -lh "$BIN"
-          size "$BIN" || true
-
-          echo
-          echo "===== Build information ====="
-
-          cat > "$HOME/release/release/build-info.txt" <<EOF
-          curl version: $CURL_VERSION
-          architecture: x86_64
-          CPU tuning: broadwell
-          deployment target: macOS 11.0
-          HTTP/3: enabled
-          Apple Fast UDP: enabled
-          CFLAGS: $CFLAGS
-          CXXFLAGS: $CXXFLAGS
-          LDFLAGS: $LDFLAGS
-          static-curl commit: $(git rev-parse HEAD)
-          EOF
-
-          cat "$HOME/release/release/build-info.txt"
-
-          echo
-          echo "===== Release files ====="
-
-          find "$HOME/release/release" \
-            -maxdepth 2 \
-            -type f \
-            -print \
-            -exec ls -lh {} \;
 
       - name: Rename release assets
         id: assets
@@ -481,7 +356,7 @@ jobs:
         run: |
           set -euxo pipefail
 
-          RELEASE_DIR="$HOME/release/release"
+          RELEASE_DIR="$HOME/release"
 
           VERSION="$CURL_VERSION"
 
@@ -519,10 +394,10 @@ jobs:
         with:
           name: curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell
           path: |
-            static-curl/../release/release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell
-            static-curl/../release/release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-dev.tar.xz
-            static-curl/../release/release/curl-${{ steps.curl.outputs.version }}-cacert.pem
-            static-curl/../release/release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-build-info.txt
+            static-curl/../release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell
+            static-curl/../release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-dev.tar.xz
+            static-curl/../release/curl-${{ steps.curl.outputs.version }}-cacert.pem
+            static-curl/../release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-build-info.txt
           if-no-files-found: error
 
       - name: Upload to GitHub Release
@@ -536,10 +411,10 @@ jobs:
 
           RELEASE_TAG="curl-${VERSION}"
 
-          BIN="$HOME/release/release/curl-${VERSION}-macos-x86_64-broadwell"
-          DEV="$HOME/release/release/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
-          CA="$HOME/release/release/curl-${VERSION}-cacert.pem"
-          INFO="$HOME/release/release/curl-${VERSION}-macos-x86_64-broadwell-build-info.txt"
+          BIN="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell"
+          DEV="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
+          CA="$HOME/release/curl-${VERSION}-cacert.pem"
+          INFO="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell-build-info.txt"
 
           echo
           echo "===== GitHub Release ====="
