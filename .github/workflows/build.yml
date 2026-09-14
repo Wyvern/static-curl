@@ -1,0 +1,589 @@
+name: curl-macOS
+
+on:
+  push:
+    branches: ["main"]
+
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  macOS:
+    name: curl-macOS-Intel-Broadwell
+
+    runs-on: macos-26
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Disable macOS Spotlight indexing
+        run: |
+          set -euxo pipefail
+
+          sudo mdutil -a -i off
+          sudo mdutil -a -d
+          sudo pmset -a powernap 0
+          sudo pmset -a sleep 0
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Show build environment
+        run: |
+          set -euxo pipefail
+
+          echo
+          echo "===== System ====="
+          uname -a
+          uname -m
+          sw_vers
+
+          echo
+          echo "===== CPU ====="
+          sysctl -n machdep.cpu.brand_string
+          sysctl -n hw.ncpu
+
+          echo
+          echo "===== Toolchain ====="
+          clang --version
+          clang++ --version
+          make --version
+          cmake --version
+          xcode-select -p
+
+      - name: Detect latest curl release
+        id: curl
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+
+          # GitHub's latest-release API returns a tag such as:
+          #
+          #   curl-8_22_0
+          #
+          # Convert that to:
+          #
+          #   8.22.0
+          #
+
+          tag="$(
+            /usr/bin/curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --retry 5 \
+              --retry-all-errors \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/curl/curl/releases/latest" |
+              jq -r '.tag_name'
+          )"
+
+          if [[ -z "$tag" || "$tag" == "null" ]]; then
+            echo "ERROR: unable to determine latest curl release"
+            exit 1
+          fi
+
+          case "$tag" in
+            curl-[0-9]*)
+              version="${tag#curl-}"
+              version="${version//_/.}"
+              ;;
+            v[0-9]*)
+              version="${tag#v}"
+              ;;
+            [0-9]*)
+              version="$tag"
+              ;;
+            *)
+              echo "ERROR: unexpected curl release tag: $tag"
+              exit 1
+              ;;
+          esac
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: invalid curl version: $version"
+            exit 1
+          fi
+
+          echo
+          echo "Latest curl tag:     $tag"
+          echo "Latest curl version: $version"
+          echo
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          echo "CURL_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Checkout static-curl
+        uses: actions/checkout@v7
+        with:
+          repository: stunnel/static-curl
+          path: static-curl
+          fetch-depth: 1
+
+      - name: Patch static-curl
+        working-directory: static-curl
+        env:
+          CURL_VERSION: ${{ steps.curl.outputs.version }}
+        run: |
+          set -euxo pipefail
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path("curl-static-mac.sh")
+          text = path.read_text()
+
+          #####################################################################
+          # Apple Fast UDP
+          #####################################################################
+
+          old = """        --with-nghttp2 --with-nghttp3 --with-ngtcp2 \\
+                  --with-libidn2 --with-libssh2 \\
+          """
+
+          new = """        --with-nghttp2 --with-nghttp3 --with-ngtcp2 \\
+                  --enable-apple-fast-udp \\
+                  --with-libidn2 --with-libssh2 \\
+          """
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: curl configure dependency block not found"
+              )
+
+          text = text.replace(old, new, 1)
+
+          #####################################################################
+          # Preserve our global CFLAGS/CXXFLAGS instead of replacing them.
+          #####################################################################
+
+          old = """        CFLAGS="-I${PREFIX}/include" \\
+                  CPPFLAGS="-I${PREFIX}/include";"""
+
+          new = """        CFLAGS="${CFLAGS} -I${PREFIX}/include" \\
+                  CXXFLAGS="${CXXFLAGS}" \\
+                  CPPFLAGS="${CPPFLAGS} -I${PREFIX}/include";"""
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: curl configure CFLAGS block not found"
+              )
+
+          text = text.replace(old, new, 1)
+
+          #####################################################################
+          # Preserve optimization flags during the curl compilation itself.
+          #####################################################################
+
+          old = """    LDFLAGS="-L${PREFIX}/lib -static -all-static -Wl,-s ${LDFLAGS}" \\
+                  CFLAGS="-I${PREFIX}/include -I${PREFIX}/include/brotli" \\
+                  CPPFLAGS="-I${PREFIX}/include -I${PREFIX}/include/brotli" \\
+                  make -j "${CPU_CORES}";"""
+
+          new = """    LDFLAGS="-L${PREFIX}/lib -static -all-static -Wl,-s ${LDFLAGS}" \\
+                  CFLAGS="${CFLAGS} -I${PREFIX}/include -I${PREFIX}/include/brotli" \\
+                  CXXFLAGS="${CXXFLAGS}" \\
+                  CPPFLAGS="${CPPFLAGS} -I${PREFIX}/include -I${PREFIX}/include/brotli" \\
+                  make -j "${CPU_CORES}";"""
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: curl compilation flags block not found"
+              )
+
+          text = text.replace(old, new, 1)
+
+          #####################################################################
+          # libssh2 currently hard-codes CFLAGS=-O3.
+          # Preserve our complete optimization flags.
+          #####################################################################
+
+          old = """    LDFLAGS="-L${PREFIX}/lib ${LDFLAGS}" CFLAGS="-O3" \\
+                  ./configure --host="${TARGET}" --prefix="${PREFIX}" --enable-static --enable-shared=no \\
+          """
+
+          new = """    LDFLAGS="-L${PREFIX}/lib ${LDFLAGS}" \\
+                  CFLAGS="${CFLAGS}" \\
+                  CXXFLAGS="${CXXFLAGS}" \\
+                  ./configure --host="${TARGET}" --prefix="${PREFIX}" --enable-static --enable-shared=no \\
+          """
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: libssh2 optimization block not found"
+              )
+
+          text = text.replace(old, new, 1)
+
+          #####################################################################
+          # arch_variants() currently overwrites LDFLAGS with Apple's
+          # framework flags. Append instead of replacing our optimization
+          # linker flags.
+          #####################################################################
+
+          old = """    export LDFLAGS="-framework CoreFoundation -framework SystemConfiguration"
+          """
+
+          new = """    export LDFLAGS="-framework CoreFoundation -framework SystemConfiguration ${LDFLAGS:-}"
+          """
+
+          if old not in text:
+              raise SystemExit(
+                  "ERROR: arch_variants LDFLAGS assignment not found"
+              )
+
+          text = text.replace(old, new, 1)
+
+          path.write_text(text)
+
+          PY
+
+          echo
+          echo "===== Patched static-curl ====="
+          echo
+
+          git diff -- curl-static-mac.sh
+
+          echo
+          echo "===== Apple Fast UDP ====="
+          grep -n -- '--enable-apple-fast-udp' curl-static-mac.sh
+
+      - name: Configure optimized Intel build
+        run: |
+          set -euxo pipefail
+
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> "$GITHUB_ENV"
+
+          #####################################################################
+          # Broadwell-specific x86_64 build.
+          #
+          # -O3                         aggressive optimization
+          # -march=broadwell            Broadwell ISA
+          # -mtune=broadwell            Broadwell scheduling/tuning
+          # -flto=thin                  ThinLTO
+          # -ffunction-sections         section-level dead stripping
+          # -fdata-sections             section-level dead stripping
+          # -fomit-frame-pointer        free frame pointer in optimized code
+          # -fno-unwind-tables          reduce unwind metadata
+          # -fno-asynchronous-unwind-tables
+          #                              reduce async unwind metadata
+          # -pipe                       compiler pipeline optimization
+          #
+          # NOTE:
+          # -no-ident is intentionally NOT used.
+          #####################################################################
+
+          CFLAGS="
+            -O3
+            -march=broadwell
+            -mtune=broadwell
+            -flto=thin
+            -ffunction-sections
+            -fdata-sections
+            -fomit-frame-pointer
+            -fno-unwind-tables
+            -fno-asynchronous-unwind-tables
+            -pipe
+          "
+
+          CXXFLAGS="$CFLAGS"
+
+          LDFLAGS="
+            -Wl,-dead_strip
+            -Wl,-dead_strip_dylibs
+          "
+
+          # Collapse whitespace.
+          CFLAGS="$(echo "$CFLAGS")"
+          CXXFLAGS="$(echo "$CXXFLAGS")"
+          LDFLAGS="$(echo "$LDFLAGS")"
+
+          echo "CFLAGS=$CFLAGS" >> "$GITHUB_ENV"
+          echo "CXXFLAGS=$CXXFLAGS" >> "$GITHUB_ENV"
+          echo "LDFLAGS=$LDFLAGS" >> "$GITHUB_ENV"
+
+          echo
+          echo "===== CFLAGS ====="
+          echo "$CFLAGS"
+
+          echo
+          echo "===== CXXFLAGS ====="
+          echo "$CXXFLAGS"
+
+          echo
+          echo "===== LDFLAGS ====="
+          echo "$LDFLAGS"
+
+      - name: Build static curl
+        working-directory: static-curl
+        env:
+          ARCHES: x86_64
+          TLS_LIB: openssl
+          CURL_VERSION: ${{ steps.curl.outputs.version }}
+
+          # Leave dependencies on their current release-resolution mechanism.
+          OPENSSL_VERSION: ""
+          NGTCP2_VERSION: ""
+          NGHTTP3_VERSION: ""
+          NGHTTP2_VERSION: ""
+          LIBIDN2_VERSION: ""
+          LIBUNISTRING_VERSION: ""
+          ZLIB_VERSION: ""
+          BROTLI_VERSION: ""
+          ZSTD_VERSION: ""
+          LIBSSH2_VERSION: ""
+          LIBPSL_VERSION: ""
+          ARES_VERSION: ""
+
+          ENABLE_DEBUG: false
+
+        run: |
+          set -euxo pipefail
+
+          bash ./curl-static-mac.sh
+
+      - name: Verify build
+        id: verify
+        working-directory: static-curl
+        env:
+          CURL_VERSION: ${{ steps.curl.outputs.version }}
+        run: |
+          set -euxo pipefail
+
+          BIN="$HOME/release/release/bin/curl-macos-x86_64"
+          BUILD="$HOME/build/curl-x86_64"
+
+          if [[ ! -x "$BIN" ]]; then
+            echo "ERROR: curl binary not found:"
+            echo "$BIN"
+            find "$HOME/release" -maxdepth 4 -type f -print
+            exit 1
+          fi
+
+          echo
+          echo "===== curl ====="
+          "$BIN" -V
+
+          echo
+          echo "===== file ====="
+          file "$BIN"
+
+          echo
+          echo "===== architecture ====="
+          lipo -info "$BIN"
+
+          file "$BIN" | grep -q 'x86_64'
+
+          echo
+          echo "===== macOS deployment target ====="
+          otool -l "$BIN" |
+            grep -A5 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX' || true
+
+          echo
+          echo "===== HTTP/3 ====="
+
+          if ! "$BIN" -V | grep -qw 'HTTP3'; then
+            echo "ERROR: HTTP/3 support is missing"
+            exit 1
+          fi
+
+          echo "HTTP/3: enabled"
+
+          echo
+          echo "===== Apple Fast UDP configuration ====="
+
+          config="$(
+            find "$BUILD" \
+              -type f \
+              -name curl_config.h \
+              -print \
+              2>/dev/null |
+              head -1
+          )"
+
+          if [[ -z "$config" ]]; then
+            echo "ERROR: curl_config.h not found"
+            exit 1
+          fi
+
+          echo "Config: $config"
+
+          grep -n \
+            -E 'USE_APPLE_FAST_UDP|USE_NGTCP2|USE_NGHTTP3' \
+            "$config" || true
+
+          if ! grep -Eq \
+            '^[[:space:]]*#define[[:space:]]+USE_APPLE_FAST_UDP[[:space:]]+1' \
+            "$config"
+          then
+            echo
+            echo "ERROR: USE_APPLE_FAST_UDP was not enabled"
+            exit 1
+          fi
+
+          echo
+          echo "Apple Fast UDP: ENABLED"
+
+          echo
+          echo "===== Apple Fast UDP source ====="
+
+          grep -R \
+            -E 'SYS_recvmsg_x|SYS_sendmsg_x|USE_APPLE_FAST_UDP' \
+            "$BUILD" \
+            2>/dev/null |
+            head -50 || true
+
+          echo
+          echo "===== Binary size ====="
+
+          ls -lh "$BIN"
+          size "$BIN" || true
+
+          echo
+          echo "===== Build information ====="
+
+          cat > "$HOME/release/release/build-info.txt" <<EOF
+          curl version: $CURL_VERSION
+          architecture: x86_64
+          CPU tuning: broadwell
+          deployment target: macOS 11.0
+          HTTP/3: enabled
+          Apple Fast UDP: enabled
+          CFLAGS: $CFLAGS
+          CXXFLAGS: $CXXFLAGS
+          LDFLAGS: $LDFLAGS
+          static-curl commit: $(git rev-parse HEAD)
+          EOF
+
+          cat "$HOME/release/release/build-info.txt"
+
+          echo
+          echo "===== Release files ====="
+
+          find "$HOME/release/release" \
+            -maxdepth 2 \
+            -type f \
+            -print \
+            -exec ls -lh {} \;
+
+      - name: Rename release assets
+        id: assets
+        working-directory: static-curl
+        env:
+          CURL_VERSION: ${{ steps.curl.outputs.version }}
+        run: |
+          set -euxo pipefail
+
+          RELEASE_DIR="$HOME/release/release"
+
+          VERSION="$CURL_VERSION"
+
+          BIN="$RELEASE_DIR/curl-macos-x86_64"
+          DEV="$RELEASE_DIR/curl-macos-x86_64-dev-${VERSION}.tar.xz"
+          CA="$RELEASE_DIR/cacert.pem"
+          INFO="$RELEASE_DIR/build-info.txt"
+
+          FINAL_BIN="$RELEASE_DIR/curl-${VERSION}-macos-x86_64-broadwell"
+          FINAL_DEV="$RELEASE_DIR/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
+          FINAL_CA="$RELEASE_DIR/curl-${VERSION}-cacert.pem"
+          FINAL_INFO="$RELEASE_DIR/curl-${VERSION}-macos-x86_64-broadwell-build-info.txt"
+
+          mv "$BIN" "$FINAL_BIN"
+          mv "$DEV" "$FINAL_DEV"
+          mv "$CA" "$FINAL_CA"
+          mv "$INFO" "$FINAL_INFO"
+
+          echo "binary=$FINAL_BIN" >> "$GITHUB_OUTPUT"
+          echo "dev=$FINAL_DEV" >> "$GITHUB_OUTPUT"
+          echo "cacert=$FINAL_CA" >> "$GITHUB_OUTPUT"
+          echo "info=$FINAL_INFO" >> "$GITHUB_OUTPUT"
+
+          echo
+          echo "===== Final assets ====="
+
+          ls -lh \
+            "$FINAL_BIN" \
+            "$FINAL_DEV" \
+            "$FINAL_CA" \
+            "$FINAL_INFO"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell
+          path: |
+            static-curl/../release/release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell
+            static-curl/../release/release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-dev.tar.xz
+            static-curl/../release/release/curl-${{ steps.curl.outputs.version }}-cacert.pem
+            static-curl/../release/release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-build-info.txt
+          if-no-files-found: error
+
+      - name: Upload to GitHub Release
+        working-directory: static-curl
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.curl.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euxo pipefail
+
+          RELEASE_TAG="curl-${VERSION}"
+
+          BIN="$HOME/release/release/curl-${VERSION}-macos-x86_64-broadwell"
+          DEV="$HOME/release/release/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
+          CA="$HOME/release/release/curl-${VERSION}-cacert.pem"
+          INFO="$HOME/release/release/curl-${VERSION}-macos-x86_64-broadwell-build-info.txt"
+
+          echo
+          echo "===== GitHub Release ====="
+          echo "Repository: $REPOSITORY"
+          echo "Version:    $VERSION"
+          echo "Tag:        $RELEASE_TAG"
+          echo
+
+          if gh release view \
+            "$RELEASE_TAG" \
+            --repo "$REPOSITORY" \
+            >/dev/null 2>&1
+          then
+            echo "Release already exists; replacing assets."
+
+            gh release upload \
+              "$RELEASE_TAG" \
+              "$BIN" \
+              "$DEV" \
+              "$CA" \
+              "$INFO" \
+              --repo "$REPOSITORY" \
+              --clobber
+          else
+            echo "Creating release."
+
+            gh release create \
+              "$RELEASE_TAG" \
+              "$BIN" \
+              "$DEV" \
+              "$CA" \
+              "$INFO" \
+              --repo "$REPOSITORY" \
+              --title "curl ${VERSION} — macOS x86_64 Broadwell" \
+              --generate-notes
+          fi
+
+          echo
+          echo "===== Release ====="
+
+          gh release view \
+            "$RELEASE_TAG" \
+            --repo "$REPOSITORY"
