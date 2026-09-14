@@ -333,9 +333,6 @@ jobs:
       - name: Build static curl
         working-directory: static-curl
         env:
-            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        env:
           ARCHES: x86_64
           TLS_LIB: openssl
           CURL_VERSION: ${{ steps.curl.outputs.version }}
@@ -358,7 +355,8 @@ jobs:
 
         run: |
           set -euxo pipefail
-
+          grep -n -A50 -B10 'url_from_github' static-curl/curl-static-mac.sh
+          exit
           bash ./curl-static-mac.sh
 
       - name: Verify build
