@@ -336,6 +336,8 @@ jobs:
           ARCHES: x86_64
           TLS_LIB: openssl
           CURL_VERSION: ${{ steps.curl.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
           # Leave dependencies on their current release-resolution mechanism.
           OPENSSL_VERSION: ""
@@ -355,8 +357,7 @@ jobs:
 
         run: |
           set -euxo pipefail
-          grep -n -A50 -B10 'url_from_github' static-curl/curl-static-mac.sh
-          exit
+
           bash ./curl-static-mac.sh
 
       - name: Verify build
