@@ -263,55 +263,22 @@ jobs:
 
           export MACOSX_DEPLOYMENT_TARGET=11.0
 
-          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> "$GITHUB_ENV"
-
-          #####################################################################
-          # Broadwell-specific x86_64 build.
-          #
-          # -O3                         aggressive optimization
-          # -march=broadwell            Broadwell ISA
-          # -mtune=broadwell            Broadwell scheduling/tuning
-          # -flto=thin                  ThinLTO
-          # -ffunction-sections         section-level dead stripping
-          # -fdata-sections             section-level dead stripping
-          # -fomit-frame-pointer        free frame pointer in optimized code
-          # -fno-unwind-tables          reduce unwind metadata
-          # -fno-asynchronous-unwind-tables
-          #                              reduce async unwind metadata
-          # -pipe                       compiler pipeline optimization
-          #
-          # NOTE:
-          # -no-ident is intentionally NOT used.
-          #####################################################################
-
-          CFLAGS="
-            -O3
-            -march=broadwell
-            -mtune=broadwell
-            -flto=thin
-            -ffunction-sections
-            -fdata-sections
-            -fomit-frame-pointer
-            -fno-unwind-tables
-            -fno-asynchronous-unwind-tables
-            -pipe
-          "
+          CFLAGS="-O3 -march=broadwell -mtune=broadwell -flto=thin -ffunction-sections -fdata-sections -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables -pipe"
 
           CXXFLAGS="$CFLAGS"
 
-          LDFLAGS="
-            -Wl,-dead_strip
-            -Wl,-dead_strip_dylibs
-          "
+          LDFLAGS="-Wl,-dead_strip -Wl,-dead_strip_dylibs"
 
-          # Collapse whitespace.
-          CFLAGS="$(echo "$CFLAGS")"
-          CXXFLAGS="$(echo "$CXXFLAGS")"
-          LDFLAGS="$(echo "$LDFLAGS")"
+          export CFLAGS
+          export CXXFLAGS
+          export LDFLAGS
 
-          echo "CFLAGS=$CFLAGS" >> "$GITHUB_ENV"
-          echo "CXXFLAGS=$CXXFLAGS" >> "$GITHUB_ENV"
-          echo "LDFLAGS=$LDFLAGS" >> "$GITHUB_ENV"
+          {
+              echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
+              echo "CFLAGS=$CFLAGS"
+              echo "CXXFLAGS=$CXXFLAGS"
+              echo "LDFLAGS=$LDFLAGS"
+          } >> "$GITHUB_ENV"
 
           echo
           echo "===== CFLAGS ====="
