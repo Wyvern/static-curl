@@ -223,13 +223,6 @@ jobs:
               "OpenSSL test/fuzz removal",
           )
 
-          # Remove curl's test suite after extracting curl and before configure.
-          insert_before(
-              '    if [ ! -f src/.checksrc ]; then echo "enable STDERR" > src/.checksrc; fi',
-              '    rm -rf tests\n',
-              "curl test suite removal",
-          )
-
           # Authenticate both GitHub API functions.
           #
           # The script uses:
@@ -256,6 +249,17 @@ jobs:
               "GitHub API authentication",
               occurrences=2,
           )
+
+          replace(
+                  '    curl_config;\n'
+                  '    LDFLAGS="-L${PREFIX}/lib -static -all-static -Wl,-s ${LDFLAGS}" \\',
+                  '    curl_config;\n\n'
+                  '    # Autotools configure requires tests/Makefile.in.\n'
+                  '    # Remove the complete curl test suite only after configure succeeds.\n'
+                  '    rm -rf tests\n\n'
+                  '    LDFLAGS="-L${PREFIX}/lib -static -all-static -Wl,-s ${LDFLAGS}" \\',
+                  "curl test suite removal",
+              )
 
           path.write_text(text)
           PY
