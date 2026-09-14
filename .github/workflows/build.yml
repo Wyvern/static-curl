@@ -267,14 +267,14 @@ jobs:
 
           path.write_text(text.replace(old, new, 1))
 
-          old = '''        threads no-shared \\
-                  ${no_pie_tests_asm} \\
-          '''
+          old = """        threads no-shared \\
+                  enable-ktls \\
+          """
 
-          new = '''        threads no-shared \\
+          new = """        threads no-shared \\
                   no-tests \\
-                  ${no_pie_tests_asm} \\
-          '''
+                  enable-ktls \\
+          """
 
           if old not in text:
               raise SystemExit("ERROR: OpenSSL Configure block not found")
