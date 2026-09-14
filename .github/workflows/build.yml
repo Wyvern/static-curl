@@ -356,8 +356,8 @@ jobs:
         run: |
           set -euxo pipefail
 
-          RELEASE_DIR="$HOME/release"
-
+          RELEASE_DIR="$GITHUB_WORKSPACE/release"
+          mkdir -p "$RELEASE_DIR"
           VERSION="$CURL_VERSION"
 
           BIN="$RELEASE_DIR/bin/curl-macos-x86_64"
@@ -389,10 +389,9 @@ jobs:
         with:
           name: curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell
           path: |
-            static-curl/../release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell
-            static-curl/../release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-dev.tar.xz
-            static-curl/../release/curl-${{ steps.curl.outputs.version }}-cacert.pem
-          if-no-files-found: error
+            release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell
+            release/curl-${{ steps.curl.outputs.version }}-macos-x86_64-broadwell-dev.tar.xz
+            release/curl-${{ steps.curl.outputs.version }}-cacert.pem
 
       - name: Upload to GitHub Release
         working-directory: static-curl
@@ -405,9 +404,9 @@ jobs:
 
           RELEASE_TAG="curl-${VERSION}"
 
-          BIN="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell"
-          DEV="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
-          CA="$HOME/release/curl-${VERSION}-cacert.pem"
+          BIN="$GITHUB_WORKSPACE/release/curl-${VERSION}-macos-x86_64-broadwell"
+          DEV="$GITHUB_WORKSPACE/release/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
+          CA="$GITHUB_WORKSPACE/release/curl-${VERSION}-cacert.pem"
 
           echo
           echo "===== GitHub Release ====="
