@@ -227,6 +227,19 @@ jobs:
               "curl test suite removal",
           )
 
+          replace(
+                  '''    if [ -n "${TOKEN_READ:-}" ]; then
+                      auth_header="token ${TOKEN_READ}"
+                  fi''',
+                  '''    if [ -n "${GH_TOKEN:-}" ]; then
+                      auth_header="Bearer ${GH_TOKEN}"
+                  elif [ -n "${TOKEN_READ:-}" ]; then
+                      auth_header="token ${TOKEN_READ}"
+                  fi''',
+                  "GitHub API authentication",
+                  count=2,
+              )
+
           path.write_text(text)
           PY
 
