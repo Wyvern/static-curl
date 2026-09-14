@@ -243,6 +243,35 @@ jobs:
 
           text = text.replace(old, new, 1)
 
+          old = '''    else
+                  url_from_github curl/curl "${CURL_VERSION}";
+                  url="${URL}";
+                  download_and_extract "${url}";
+                  [ -z "${CURL_VERSION}" ] && CURL_VERSION=$(echo "${SOURCE_DIR}" | cut -d'-' -f 2);
+              fi
+
+              if [ ! -f src/.checksrc ]; then echo "enable STDERR" > src/.checksrc; fi
+              curl_config;
+          '''
+
+          new = '''    else
+                  url_from_github curl/curl "${CURL_VERSION}";
+                  url="${URL}";
+                  download_and_extract "${url}";
+                  [ -z "${CURL_VERSION}" ] && CURL_VERSION=$(echo "${SOURCE_DIR}" | cut -d'-' -f 2);
+              fi
+
+              rm -rf tests
+
+              if [ ! -f src/.checksrc ]; then echo "enable STDERR" > src/.checksrc; fi
+              curl_config;
+          '''
+
+          if old not in text:
+              raise SystemExit("ERROR: target code not found; curl-static-mac.sh may have changed")
+
+          path.write_text(text.replace(old, new, 1))
+
           path.write_text(text)
 
           PY
