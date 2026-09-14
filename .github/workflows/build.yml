@@ -356,7 +356,7 @@ jobs:
         run: |
           set -euxo pipefail
 
-          RELEASE_DIR="$GITHUB_WORKSPACE/release"
+          RELEASE_DIR="$HOME/release"
           mkdir -p "$RELEASE_DIR"
           VERSION="$CURL_VERSION"
 
@@ -384,6 +384,13 @@ jobs:
             "$FINAL_DEV" \
             "$FINAL_CA"
 
+      - name: Prepare release assets
+        run: |
+          set -euxo pipefail
+          rm -rf "$GITHUB_WORKSPACE/release"
+          mkdir -p "$GITHUB_WORKSPACE/release"
+          cp "$HOME/release"/curl-* "$GITHUB_WORKSPACE/release/"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
@@ -404,9 +411,9 @@ jobs:
 
           RELEASE_TAG="curl-${VERSION}"
 
-          BIN="$GITHUB_WORKSPACE/release/curl-${VERSION}-macos-x86_64-broadwell"
-          DEV="$GITHUB_WORKSPACE/release/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
-          CA="$GITHUB_WORKSPACE/release/curl-${VERSION}-cacert.pem"
+          BIN="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell"
+          DEV="$HOME/release/curl-${VERSION}-macos-x86_64-broadwell-dev.tar.xz"
+          CA="$HOME/release/curl-${VERSION}-cacert.pem"
 
           echo
           echo "===== GitHub Release ====="
