@@ -137,28 +137,33 @@ jobs:
           path = Path("curl-static-mac.sh")
           text = path.read_text()
 
-          def replace(old, new, description):
+          def replace(old, new, description, occurrences=1):
               global text
-              if old not in text:
+
+              found = text.count(old)
+              if found < occurrences:
                   raise SystemExit(
-                      f"ERROR: {description} not found; "
+                      f"ERROR: {description} found {found} time(s), "
+                      f"expected at least {occurrences}; "
                       "curl-static-mac.sh may have changed upstream"
                   )
-              text = text.replace(old, new, 1)
+
+              text = text.replace(old, new, occurrences)
               print(f"patched: {description}")
 
           def insert_before(marker, insertion, description):
               global text
+
               if marker not in text:
                   raise SystemExit(
                       f"ERROR: {description} marker not found; "
                       "curl-static-mac.sh may have changed upstream"
                   )
+
               text = text.replace(marker, insertion + marker, 1)
               print(f"patched: {description}")
 
-          # Preserve the caller's linker flags when the script adds
-          # Apple's required frameworks.
+          # Preserve existing linker flags when adding Apple frameworks.
           replace(
               '    export LDFLAGS="-framework CoreFoundation -framework SystemConfiguration"',
               '    export LDFLAGS="-framework CoreFoundation -framework SystemConfiguration ${LDFLAGS:-}"',
@@ -175,8 +180,7 @@ jobs:
               "Apple Fast UDP",
           )
 
-          # Preserve global optimization/compiler flags passed through the
-          # GitHub Actions environment.
+          # Preserve global compiler optimization flags during curl configure.
           replace(
               '        CFLAGS="-I${PREFIX}/include" \\\n'
               '        CPPFLAGS="-I${PREFIX}/include";',
@@ -186,6 +190,7 @@ jobs:
               "curl configure compiler flags",
           )
 
+          # Preserve global optimization flags during curl compilation.
           replace(
               '    LDFLAGS="-L${PREFIX}/lib -static -all-static -Wl,-s ${LDFLAGS}" \\\n'
               '        CFLAGS="-I${PREFIX}/include -I${PREFIX}/include/brotli" \\\n'
@@ -199,7 +204,7 @@ jobs:
               "curl compilation compiler flags",
           )
 
-          # Do not overwrite the global optimization flags with -O3.
+          # Do not replace the global CFLAGS with hard-coded -O3.
           replace(
               '    LDFLAGS="-L${PREFIX}/lib ${LDFLAGS}" CFLAGS="-O3" \\\n',
               '    LDFLAGS="-L${PREFIX}/lib ${LDFLAGS}" \\\n'
@@ -218,27 +223,39 @@ jobs:
               "OpenSSL test/fuzz removal",
           )
 
-          # The current curl source extraction ends immediately before
-          # src/.checksrc. Remove the complete curl test suite from the
-          # source tree before configuring/building.
+          # Remove curl's test suite after extracting curl and before configure.
           insert_before(
               '    if [ ! -f src/.checksrc ]; then echo "enable STDERR" > src/.checksrc; fi',
               '    rm -rf tests\n',
               "curl test suite removal",
           )
 
+          # Authenticate both GitHub API functions.
+          #
+          # The script uses:
+          #
+          #   -H "Authorization: ${auth_header}"
+          #
+          # Therefore auth_header must be:
+          #
+          #   Bearer <token>
+          #
+          # NOT:
+          #
+          #   Authorization: Bearer <token>
+          #
           replace(
-                  '''    if [ -n "${TOKEN_READ:-}" ]; then
-                      auth_header="token ${TOKEN_READ}"
-                  fi''',
-                  '''    if [ -n "${GH_TOKEN:-}" ]; then
-                      auth_header="Bearer ${GH_TOKEN}"
-                  elif [ -n "${TOKEN_READ:-}" ]; then
-                      auth_header="token ${TOKEN_READ}"
-                  fi''',
-                  "GitHub API authentication",
-                  count=2,
-              )
+              '''    if [ -n "${TOKEN_READ:-}" ]; then
+                  auth_header="token ${TOKEN_READ}"
+              fi''',
+              '''    if [ -n "${GH_TOKEN:-}" ]; then
+                  auth_header="Bearer ${GH_TOKEN}"
+              elif [ -n "${TOKEN_READ:-}" ]; then
+                  auth_header="token ${TOKEN_READ}"
+              fi''',
+              "GitHub API authentication",
+              occurrences=2,
+          )
 
           path.write_text(text)
           PY
