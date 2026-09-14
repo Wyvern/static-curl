@@ -66,10 +66,10 @@ jobs:
           mkdir -p "sccache-bin"
 
           for compiler in clang clang++ gcc g++; do
-            cat > "sccache-bin/$compiler" <<'EOF'
-            #!/bin/bash
-            exec sccache /usr/bin/$compiler "$@"
-            EOF
+            cat > "sccache-bin/$compiler" <<EOF
+          #!/bin/bash
+          exec sccache /usr/bin/$compiler "\$@"
+          EOF
             chmod +x "sccache-bin/$compiler"
           done
 
