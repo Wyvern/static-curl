@@ -312,11 +312,11 @@ jobs:
 
           export MACOSX_DEPLOYMENT_TARGET=11.0
 
-          CFLAGS="-O3 -march=broadwell -mtune=broadwell -flto=thin -ffunction-sections -fdata-sections -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables -pipe -g0"
+          CFLAGS="-O3 -fno-exceptions -fno-rtti -march=broadwell -mtune=broadwell -flto=thin -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables -fvisibility=hidden -fno-semantic-interposition -pipe -g0"
 
           CXXFLAGS="$CFLAGS"
 
-          LDFLAGS="-O3 -Wl,-S,-x -Wl,-no_uuid -Wl,-dead_strip -Wl,-dead_strip_dylibs"
+          LDFLAGS="-Wl,-O3 -Wl,-S,-x -Wl,-no_uuid -Wl,-no_exported_symbols -Wl,-dead_strip -Wl,-dead_strip_dylibs"
 
           export CFLAGS
           export CXXFLAGS
