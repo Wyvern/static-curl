@@ -312,9 +312,9 @@ jobs:
 
           export MACOSX_DEPLOYMENT_TARGET=11.0
 
-          CFLAGS="-O3 -fno-exceptions -march=broadwell -mtune=broadwell -flto -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables -fvisibility=hidden -pipe -g0"
+          CFLAGS="-O3 -march=broadwell -mtune=broadwell -flto -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables -fvisibility=hidden -pipe -g0"
 
-          CXXFLAGS="-O3 -fno-exceptions -fno-rtti -march=broadwell -mtune=broadwell -flto -fomit-frame-pointer -fno-unwind-tables -fno-asynchronous-unwind-tables -fvisibility=hidden -fvisibility-inlines-hidden -pipe -g0"
+          CXXFLAGS="$CFLAGS -fno-exceptions -fno-rtti -fvisibility-inlines-hidden"
 
           LDFLAGS="-Wl,-O3 -Wl,-S,-x -Wl,-no_uuid -Wl,-no_exported_symbols -Wl,-dead_strip -Wl,-dead_strip_dylibs"
 
